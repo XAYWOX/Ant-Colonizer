@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ant Colonizer</title>
+    <link rel="icon" type="image/png" href="favicon.PNG">
+
+    <style>
+        :root {
+            --panel-bg: rgba(255, 255, 255, 0.25);
+            --panel-text-color: #fff;
+            --panel-title-color: #ffe600;
+            --panel-title-shadow: #ffde59;
+            --settings-header: #fff;
+            --modal-bg: rgba(30, 30, 45, 0.6);
+            --modal-border: rgba(255, 255, 255, 0.2);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #111;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden;
+            color: #f0f0f0;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        body.dark-mode {
+            --panel-bg: rgba(0, 0, 0, 0.6);
+            --panel-text-color: #e0e0e0;
+            --panel-title-color: #f0c400;
+            --panel-title-shadow: #f0c400;
+            --settings-header: #f0c400;
+            --modal-bg: rgba(10, 10, 20, 0.7);
+            --modal-border: rgba(0, 0, 0, 0.4);
+        }
+
+        #uiPanel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 0 0 16px 16px;
+            padding: 8px 20px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+            color: var(--panel-text-color);
+            user-select: none;
+            transition: background 0.3s, color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-sizing: border-box;
+            gap: 15px;
+        }
+        #uiPanel h1 {
+            margin: 0;
+            font-weight: 900;
+            font-family: Arial, sans-serif;
+            font-size: 20px;
+            color: var(--panel-title-color);
+            text-align: center;
+            text-shadow: 0 0 12px var(--panel-title-shadow);
+            letter-spacing: 1.2px;
+            animation: pulseGlow 3s infinite;
+            white-space: nowrap;
+        }
+        #status {
+            font-size: 15px;
+            display: flex;
+            gap: 20px;
+            font-weight: bold;
+        }
+        @keyframes pulseGlow { 50% { text-shadow: 0 0 20px #fff32f; } }
+        #status span { font-weight: 700; color: var(--panel-text-color); transition: color 0.3s ease; white-space: nowrap;}
+        
+        .controls-and-menu {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        #controls { 
+            margin-top: 0; 
+            display: flex; 
+            flex-direction: row; 
+            gap: 10px;
+        }
+        #controls button {
+            background: linear-gradient(145deg, #ffeb3b, #fdd835); border: none; color: #222;
+            font-weight: 700; font-size: 13px; padding: 8px 12px; border-radius: 10px;
+            cursor: pointer; box-shadow: 0 4px 6px rgba(255, 235, 59, 0.6), inset 0 -3px 8px #fbc02d;
+            transition: all 0.25s ease; width: auto; user-select: none; display: flex;
+            justify-content: center; align-items: center; gap: 8px; flex-shrink: 0;
+            white-space: nowrap;
+        }
+        #controls button:active:not(:disabled) { transform: scale(0.95); box-shadow: 0 2px 4px rgba(255, 235, 59, 0.4), inset 0 -2px 5px #fbc02d; }
+        #controls button:disabled { background: #bbb; color: #666; cursor: not-allowed; box-shadow: none; opacity: 0.6; }
+        #controls button:hover:not(:disabled) { background: linear-gradient(145deg, #fff176, #fbc02d); box-shadow: 0 6px 12px rgba(255, 241, 118, 0.9), inset 0 -4px 12px #fbc02d; }
+        
+        canvas { 
+            display: block; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
+            z-index: 1; background: transparent; transition: filter 0.3s ease-in-out;
+        }
+        canvas.blurred {
+            filter: blur(5px) brightness(0.7);
+        }
+        
+        .menu-wrapper {
+            display: flex;
+            gap: 10px;
+        }
+
+        .menu-btn {
+            position: relative;
+            width: 40px; height: 40px;
+            background: var(--panel-bg); border: none; border-radius: 50%;
+            cursor: pointer; font-size: 20px; display: flex; justify-content: center;
+            align-items: center; transition: transform 0.5s ease, background 0.3s;
+            flex-shrink: 0;
+        }
+        .menu-btn:hover { 
+            transform: scale(1.1); 
+        }
+        #settingsBtn:hover {
+             transform: rotate(180deg); 
+        }
+
+        .notification-dot {
+            position: absolute; top: 5px; right: 5px; width: 10px; height: 10px;
+            background-color: red; border-radius: 50%; border: 2px solid white;
+            display: none;
+        }
+
+        .modal {
+            display: none; position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); background: var(--modal-bg);
+            backdrop-filter: blur(12px); border-radius: 16px; padding: 25px 35px;
+            z-index: 20; color: var(--panel-text-color); box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+            min-width: 300px; max-width: 600px; transition: background 0.3s, color 0.3s;
+            border: 1px solid var(--modal-border);
+        }
+        .modal h2 { text-align: center; margin-top: 0; margin-bottom: 30px; color: var(--settings-header); font-weight: 600; }
+        .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .setting-row:last-child { margin-bottom: 0; }
+        .setting-row label { font-size: 18px; }
+
+        .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .4s; border-radius: 28px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #fdd835; }
+        input:focus + .slider { box-shadow: 0 0 1px #fdd835; }
+        input:checked + .slider:before { transform: translateX(22px); }
+        
+        .close-modal-btn {
+            position: absolute; top: 8px; right: 12px; background: none; border: none;
+            font-size: 28px; color: var(--panel-text-color); cursor: pointer;
+            line-height: 1; padding: 5px; transition: color 0.3s;
+        }
+        
+        #resetProgressBtn {
+            width: 100%; padding: 10px; font-size: 16px; background-color: #dc3545;
+            color: white; border: none; border-radius: 8px; cursor: pointer;
+        }
+        
+        #achievementsList {
+            list-style: none;
+            padding: 0;
+            max-height: 50vh;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        .achievement-item {
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            padding: 15px;
+            border: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .achievement-item.locked {
+            opacity: 0.6;
+        }
+        .achievement-item.unlocked {
+            border-color: var(--panel-title-color);
+        }
+        .achievement-item-icon {
+            font-size: 40px;
+            flex-shrink: 0;
+        }
+        .achievement-item-details {
+            flex-grow: 1;
+            text-align: left;
+        }
+        .achievement-item-name {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .achievement-item-desc {
+            font-size: 13px;
+            color: #ccc;
+            margin-top: 4px;
+        }
+        .achievement-item-reward {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--panel-title-color);
+            flex-shrink: 0;
+        }
+        .locked-icon {
+            color: #aaa;
+        }
+
+        .overlay {
+            display: none; position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); z-index: 19; color: white;
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+        .overlay-content {
+            background: var(--modal-bg); backdrop-filter: blur(10px);
+            padding: 30px 40px; border-radius: 20px; max-width: 500px;
+            text-align: center; border: 1px solid var(--modal-border);
+        }
+        .overlay h2 { font-size: 32px; color: var(--panel-title-color); margin-top: 0; }
+        .overlay p { font-size: 18px; line-height: 1.6; margin-bottom: 20px; }
+        .overlay button {
+             font-size: 20px; padding: 12px 25px; border-radius: 12px; border: none;
+             color: white; cursor: pointer; margin: 0 10px;
+        }
+        #confirmResetBtn { background-color: #dc3545; }
+        #cancelResetBtn { background-color: #6c757d; }
+        
+        #gameOverScreen .overlay-content { border: 2px solid #a02020; box-shadow: 0 0 20px rgba(255, 50, 50, 0.5); }
+        #gameOverScreen h2 { font-size: 4rem; margin-bottom: 20px; color: #ff4d4d; text-shadow: 0 0 15px rgba(255, 0, 0, 0.8); }
+        #restartBtn { font-size: 24px; padding: 15px 30px; background: #28a745; }
+
+        #footer {
+            position: fixed; bottom: 10px; width: 100%; text-align: center;
+            color: rgba(255, 255, 255, 0.5); font-size: 14px;
+            z-index: 5; pointer-events: none;
+        }
+
+    </style>
+</head>
+<body>
+    <div id="uiPanel">
+        <div id="status">
+            <span>💰 Coins: <span id="coins">5</span></span>
+            <span>🐜 Fourmis: <span id="fourmisCount">0</span> / <span id="limite">10</span></span>
+            <span>⚔️ Majors: <span id="majorsCount">0</span></span>
+            <span>🥚 Œufs: <span id="oeufsIncub">0</span></span>
+        </div>
+        <h1>Ant Colonizer</h1>
+        <div class="controls-and-menu">
+            <div id="controls">
+                <button id="pondreBtn"></button>
+                <button id="majorBtn"></button>
+                <button id="agrandirBtn"></button>
+            </div>
+            <div class="menu-wrapper">
+                <button id="settingsBtn" class="menu-btn">⚙️</button>
+                <button id="achievementsBtn" class="menu-btn">🏆<span id="achievementNotification" class="notification-dot"></span></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingsModal" class="modal">
+        <button id="closeSettingsBtn" class="close-modal-btn">&times;</button>
+        <h2>Paramètres</h2>
+        <div class="setting-row">
+            <label for="darkModeToggle">Mode Sombre</label>
+            <label class="switch">
+                <input type="checkbox" id="darkModeToggle" />
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="setting-row">
+            <button id="resetProgressBtn">Réinitialiser la Progression</button>
+        </div>
+    </div>
+
+    <div id="achievementsModal" class="modal">
+         <button id="closeAchievementsBtn" class="close-modal-btn">&times;</button>
+        <h2>Succès</h2>
+        <div id="achievementsList"></div>
+    </div>
+
+    <div id="gameOverScreen" class="overlay">
+        <div class="overlay-content">
+            <h2>La reine est morte !</h2>
+            <button id="restartBtn">Rejouer</button>
+        </div>
+    </div>
+    
+    <div id="resetConfirmOverlay" class="overlay">
+        <div class="overlay-content">
+            <h2>Attention</h2>
+            <p>Voulez-vous vraiment effacer toute votre progression ? Cette action est irréversible.</p>
+            <button id="confirmResetBtn">Oui, effacer</button>
+            <button id="cancelResetBtn">Annuler</button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+    <div id="footer">© Ant Colonizer - XAYWOX</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas'), ctx = canvas.getContext('2d');
+        const uiElements = {
+            coins: document.getElementById('coins'), fourmisCount: document.getElementById('fourmisCount'),
+            majorsCount: document.getElementById('majorsCount'), oeufsIncub: document.getElementById('oeufsIncub'),
+            pondreBtn: document.getElementById('pondreBtn'), majorBtn: document.getElementById('majorBtn'),
+            agrandirBtn: document.getElementById('agrandirBtn'), settingsBtn: document.getElementById('settingsBtn'),
+            settingsModal: document.getElementById('settingsModal'), darkModeToggle: document.getElementById('darkModeToggle'),
+            closeSettingsBtn: document.getElementById('closeSettingsBtn'), gameOverScreen: document.getElementById('gameOverScreen'),
+            restartBtn: document.getElementById('restartBtn'), 
+            resetProgressBtn: document.getElementById('resetProgressBtn'),
+            resetConfirmOverlay: document.getElementById('resetConfirmOverlay'), confirmResetBtn: document.getElementById('confirmResetBtn'),
+            cancelResetBtn: document.getElementById('cancelResetBtn'), achievementsBtn: document.getElementById('achievementsBtn'),
+            achievementsModal: document.getElementById('achievementsModal'), closeAchievementsBtn: document.getElementById('closeAchievementsBtn'),
+            achievementsList: document.getElementById('achievementsList'),
+            achievementNotification: document.getElementById('achievementNotification'),
+        };
+        
+        let gameState = {
+            coins: 50, limiteFourmis: 10, prixUpgrade: 100, prixMajor: 25,
+            fourmis: [], majors: [], oeufs: [], spiders: [], galleries: [],
+            nextAntId: 1, lastTime: null, isGameOver: false, gamePaused: false,
+            timeOfDay: 0.25, weather: 'sunny', weatherTimer: 0, rainParticles: [],
+            spiderSpawnTimer: 0, spiderWave: 0, spiderWarnings: [], impactParticles: [],
+        };
+        
+        const queen = { x: 0, y: 0, health: 100 };
+        
+        const CONFIG = {
+            REPUSH_TIME: 10, MAX_BAIES_QUANTITY: 3, DAY_CYCLE_DURATION: 180, WEATHER_CHANGE_INTERVAL: 30,
+            MELON_RESPAWN_TIME: 30, SPIDER_SPAWN_INTERVAL: 45
+        };
+        let centerX, centerY, cielBottom, herbeTop, herbeBottom;
+        const baies = [ {x:0,y:0,quantity:3,timer:0}, {x:0,y:0,quantity:3,timer:0}, {x:0,y:0,quantity:3,timer:0} ];
+        const melons = [{ x: 0, y: 0, quantity: 1, timer: 0 }];
+        let keySequence = '', cheatCode = 'awesome';
+        let activeModal = null;
+        let grassBlades = [];
+
+        const achievements = {
+            FIRST_EGG: { name: "Première ponte", description: "Pondre votre premier œuf.", icon: "🥚", unlocked: false, reward: 10 },
+            FIRST_MAJOR: { name: "Premier soldat", description: "Former votre premier Major.", icon: "⚔️", unlocked: false, reward: 25 },
+            POPULATION_20: { name: "Colonie Grandissante", description: "Atteindre 20 fourmis.", icon: "👨‍👩‍👧‍👦", unlocked: false, reward: 50, condition: () => (gameState.fourmis.length + gameState.majors.length) >= 25 },
+            SPIDERS_10: { name: "Chasseur", description: "Tuer 10 araignées.", icon: "🕷️", unlocked: false, reward: 100, condition: () => achievements.stats.spidersKilled >= 10 },
+            RICHESSE: { name: "Trésorier", description: "Amasser 1000 pièces.", icon: "💰", unlocked: false, reward: 150, condition: () => gameState.coins >= 1000 },
+            UPGRADE_3: { name: "Bâtisseur", description: "Agrandir 3 fois la fourmilière.", icon: "🏗️", unlocked: false, reward: 75, condition: () => achievements.stats.upgrades >= 3 },
+            MAJORS_10: { name: "Légionnaire", description: "Former 10 Majors.", icon: "🛡️", unlocked: false, reward: 200, condition: () => achievements.stats.majorsFormed >= 10 },
+            SPIDERS_50: { name: "Exterminateur", description: "Tuer 50 araignées.", icon: "☠️", unlocked: false, reward: 500, condition: () => achievements.stats.spidersKilled >= 50 },
+            WAVE_10: { name: "Vétéran", description: "Survivre 10 vagues.", icon: "🎖️", unlocked: false, reward: 300, condition: () => gameState.spiderWave >= 10 },
+        };
+        achievements.stats = { spidersKilled: 0, upgrades: 0, majorsFormed: 0 };
+
+
+        class BaseAnt {
+            constructor(id, x, y, speed) { this.id = id; this.x = x; this.y = y; this.speed = speed; }
+            moveToward(tx, ty, dt) { const dx = tx - this.x, dy = ty - this.y; const dist = Math.sqrt(dx*dx + dy*dy); if (dist < 1) return true; this.x += (dx / dist) * this.speed * dt; this.y += (dy / dist) * this.speed * dt; return false; }
+        }
+        
+        class Fourmi extends BaseAnt {
+            constructor(id, x, y) { super(id, x, y, 60 + Math.random() * 40); this.state = 'searching'; this.restTime = 0; this.carryingFood = false; this.target = this.getRandomTarget(); }
+            getRandomTarget() {
+                const availableMelons = melons.filter(m => m.quantity > 0);
+                if (gameState.fourmis.length >= 20 && availableMelons.length > 0) return availableMelons[Math.floor(Math.random() * availableMelons.length)];
+                const dispoBaies = baies.filter(b => b.quantity > 0);
+                if (dispoBaies.length > 0) return dispoBaies[Math.floor(Math.random() * dispoBaies.length)];
+                return { x: queen.x, y: queen.y };
+            }
+            update(dt) {
+                if (this.state === 'resting') { this.restTime -= dt; if (this.restTime <= 0) { this.state = 'searching'; this.target = this.getRandomTarget(); } return; }
+                if (!this.target || this.target.quantity <= 0) { this.target = this.getRandomTarget(); }
+                if (this.state === 'searching') {
+                    if (this.moveToward(this.target.x, this.target.y, dt)) {
+                        if (this.target && this.target.quantity > 0) { this.target.quantity--; this.target.timer = 0; this.carryingFood = true; this.state = 'carrying'; this.target = { x: queen.x, y: queen.y }; } 
+                        else { this.state = 'resting'; this.restTime = 2; this.target = null; }
+                    }
+                } else if (this.state === 'carrying') {
+                    if (this.moveToward(queen.x, queen.y, dt)) { gameState.coins += 5; checkAchievements(); this.state = 'resting'; this.restTime = 5; this.carryingFood = false; this.target = null; }
+                }
+            }
+        }
+
+        class Major extends BaseAnt {
+            constructor(id, x, y) { super(id, x, y, 50 + Math.random() * 30); this.state = 'patrolling'; this.target = null; this.health = 30; this.attackDamage = 10; this.attackCooldown = 0; this.patrolPoint = this.getPatrolPoint(); }
+            getPatrolPoint() { const angle = Math.random() * 2 * Math.PI; const radius = 50 + Math.random() * 50; return { x: queen.x + Math.cos(angle) * radius, y: queen.y + Math.sin(angle) * radius }; }
+            update(dt) {
+                this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+                this.target = gameState.spiders.sort((a,b) => Math.hypot(a.x-this.x, a.y-this.y) - Math.hypot(b.x-this.x, b.y-this.y))[0];
+                if (this.target) { this.state = 'fighting'; if (!this.moveToward(this.target.x, this.target.y, dt)) { } else if (this.attackCooldown <= 0) { this.target.health -= this.attackDamage; this.attackCooldown = 1; createImpactParticles(this.target.x, this.target.y); } } 
+                else { this.state = 'patrolling'; if (this.moveToward(this.patrolPoint.x, this.patrolPoint.y, dt)) { this.patrolPoint = this.getPatrolPoint(); } }
+            }
+        }
+
+        class Spider extends BaseAnt {
+             constructor(id, x, y, level) { super(id, x, y, 40 + Math.random() * 20); this.health = 30 + (level * 5); this.attackDamage = 10 + (level * 2); this.attackCooldown = 0; this.level = level; }
+            update(dt) {
+                this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+                let targetMajor = gameState.majors.sort((a,b) => Math.hypot(a.x-this.x, a.y-this.y) - Math.hypot(b.x-this.x, b.y-this.y))[0];
+                if(targetMajor && Math.hypot(targetMajor.x - this.x, targetMajor.y - this.y) < 150) {
+                     if (!this.moveToward(targetMajor.x, targetMajor.y, dt)) { } else if (this.attackCooldown <= 0) { targetMajor.health -= this.attackDamage; this.attackCooldown = 1.5; createImpactParticles(targetMajor.x, targetMajor.y); }
+                } else {
+                     if (!this.moveToward(queen.x, queen.y, dt)) { } else if (this.attackCooldown <= 0) { queen.health -= this.attackDamage; this.attackCooldown = 1; createImpactParticles(queen.x, queen.y); if (queen.health <= 0) { gameState.isGameOver = true; uiElements.gameOverScreen.style.display = 'flex'; canvas.classList.add('blurred'); } }
+                }
+            }
+        }
+
+        function saveGame() { localStorage.setItem('antColonizerSave', JSON.stringify({ coins: gameState.coins, limiteFourmis: gameState.limiteFourmis, prixUpgrade: gameState.prixUpgrade, prixMajor: gameState.prixMajor, spiderWave: gameState.spiderWave, galleries: gameState.galleries, achievements })); }
+        function loadGame() {
+            const savedState = localStorage.getItem('antColonizerSave');
+            if (savedState) {
+                const loaded = JSON.parse(savedState);
+                gameState.coins = loaded.coins || 50; 
+                gameState.limiteFourmis = loaded.limiteFourmis || 10;
+                gameState.prixUpgrade = loaded.prixUpgrade || 75; 
+                gameState.prixMajor = loaded.prixMajor || 25;
+                gameState.spiderWave = loaded.spiderWave || 0;
+                gameState.galleries = loaded.galleries || [];
+                if (loaded.achievements) {
+                    Object.assign(achievements.stats, loaded.achievements.stats);
+                    for(const key in achievements) {
+                        if(loaded.achievements[key]) {
+                            achievements[key].unlocked = loaded.achievements[key].unlocked;
+                        }
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+        
+        function resize() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            centerX = canvas.width / 2; cielBottom = canvas.height * 0.4;
+            herbeTop = cielBottom; herbeBottom = canvas.height;
+            centerY = herbeTop + (herbeBottom - herbeTop) * 0.5;
+            queen.x = centerX; queen.y = centerY;
+            baies.forEach((b, i) => { b.x = canvas.width*(0.75+i*0.07); b.y = herbeTop-15+(i%2*10); });
+            melons[0].x = canvas.width * 0.15; melons[0].y = herbeTop - 5;
+            
+            grassBlades = [];
+            for (let i = 0; i < canvas.width; i += 3) {
+                grassBlades.push({
+                    x: i,
+                    height: 15 + Math.random() * 20,
+                    angle: (Math.random() - 0.5) * 0.5,
+                    color: `rgba(40, ${120 + Math.random() * 60}, 20, 0.8)`
+                });
+            }
+        }
+
+        function updateUI() {
+            const totalAnts = gameState.fourmis.length + gameState.majors.length;
+            uiElements.coins.textContent = gameState.coins;
+            document.getElementById('limite').textContent = gameState.limiteFourmis;
+            uiElements.fourmisCount.textContent = totalAnts;
+            uiElements.majorsCount.textContent = gameState.majors.length;
+            uiElements.oeufsIncub.textContent = gameState.oeufs.length;
+            uiElements.pondreBtn.disabled = gameState.coins < 1 || totalAnts + gameState.oeufs.length >= gameState.limiteFourmis;
+            uiElements.majorBtn.disabled = gameState.coins < gameState.prixMajor || gameState.fourmis.length === 0;
+            uiElements.agrandirBtn.disabled = gameState.coins < gameState.prixUpgrade;
+            
+            uiElements.pondreBtn.textContent = `Pondre (1 💰)`;
+            uiElements.agrandirBtn.textContent = `Agrandir (${gameState.prixUpgrade} 💰)`;
+            uiElements.majorBtn.textContent = `Major (${gameState.prixMajor} 💰)`;
+        }
+
+        function lerpColor(a, b, amount) {
+            const ar = a >> 16, ag = a >> 8 & 0xff, ab = a & 0xff,
+                  br = b >> 16, bg = b >> 8 & 0xff, bb = b & 0xff,
+                  rr = ar + amount * (br - ar),
+                  rg = ag + amount * (bg - ag),
+                  rb = ab + amount * (bb - ab);
+            return (rr << 16) + (rg << 8) + (rb | 0);
+        }
+
+        function getSkyColors(t) {
+            const colors = {
+                DAWN: { top: 0x4A4A7F, bottom: 0x8C6FA3 }, DAY: { top: 0x87CEEB, bottom: 0xA3CEF1 },
+                DUSK: { top: 0xFF7F50, bottom: 0xFFB6C1 }, NIGHT: { top: 0x000033, bottom: 0x191970 }
+            };
+            const format = (c) => `#${c.toString(16).padStart(6, '0')}`;
+            if (t < 0.25) { const a = t / 0.25; return { top: format(lerpColor(colors.NIGHT.top, colors.DAWN.top, a)), bottom: format(lerpColor(colors.NIGHT.bottom, colors.DAWN.bottom, a)) }; } 
+            else if (t < 0.5) { const a = (t - 0.25) / 0.25; return { top: format(lerpColor(colors.DAWN.top, colors.DAY.top, a)), bottom: format(lerpColor(colors.DAWN.bottom, colors.DAY.bottom, a)) }; } 
+            else if (t < 0.75) { const a = (t - 0.5) / 0.25; return { top: format(lerpColor(colors.DAY.top, colors.DUSK.top, a)), bottom: format(lerpColor(colors.DAY.bottom, colors.DUSK.bottom, a)) }; } 
+            else { const a = (t - 0.75) / 0.25; return { top: format(lerpColor(colors.DUSK.top, colors.NIGHT.top, a)), bottom: format(lerpColor(colors.DUSK.bottom, colors.NIGHT.bottom, a)) }; }
+        }
+        
+        function drawRain() { if(gameState.weather!=='raining')return;ctx.strokeStyle='rgba(174,194,224,0.5)';ctx.lineWidth=1;ctx.beginPath();for(const p of gameState.rainParticles){ctx.moveTo(p.x,p.y);ctx.lineTo(p.x,p.y+p.length)}ctx.stroke(); }
+        
+        function drawScenery() {
+            const c=getSkyColors(gameState.timeOfDay),gC=ctx.createLinearGradient(0,0,0,herbeTop);gC.addColorStop(0,c.top);gC.addColorStop(1,c.bottom);ctx.fillStyle=gC;ctx.fillRect(0,0,canvas.width,herbeTop);
+            if(gameState.weather==='raining'){ctx.fillStyle='rgba(50,50,70,0.3)';ctx.fillRect(0,0,canvas.width,herbeTop)}
+            
+            const gradSol = ctx.createLinearGradient(0, herbeTop, 0, herbeBottom);
+            gradSol.addColorStop(0, '#5d4037'); gradSol.addColorStop(0.3, '#4e342e');
+            gradSol.addColorStop(0.7, '#3e2723'); gradSol.addColorStop(1, '#3e2723');
+            ctx.fillStyle = gradSol;
+            ctx.fillRect(0, herbeTop, canvas.width, herbeBottom - herbeTop);
+
+            const gradGrass = ctx.createLinearGradient(0, herbeTop - 30, 0, herbeTop);
+            gradGrass.addColorStop(0, 'rgba(93, 64, 55, 0)');
+            gradGrass.addColorStop(1, 'rgba(60, 140, 40, 0.8)');
+            ctx.fillStyle = gradGrass;
+            ctx.fillRect(0, herbeTop - 30, canvas.width, 30);
+
+            ctx.lineWidth = 1;
+            for (const blade of grassBlades) {
+                ctx.beginPath();
+                ctx.moveTo(blade.x, herbeTop);
+                ctx.lineTo(blade.x + blade.angle * blade.height, herbeTop - blade.height);
+                ctx.strokeStyle = blade.color;
+                ctx.stroke();
+            }
+
+            let nO=0;if(gameState.timeOfDay>0.75)nO=(gameState.timeOfDay-0.75)/0.25;if(gameState.timeOfDay<0.25)nO=(0.25-gameState.timeOfDay)/0.25;
+            if(nO>0){ctx.fillStyle=`rgba(0,0,50,${nO*0.6})`;ctx.fillRect(0,0,canvas.width,canvas.height)}
+        }
+
+        function drawGalleries() { ctx.strokeStyle='rgba(99,58,24,0.4)';ctx.lineWidth=20;ctx.lineCap='round';for(const g of gameState.galleries){ctx.beginPath();ctx.moveTo(g.startX,g.startY);ctx.quadraticCurveTo(g.controlX,g.controlY,g.endX,g.endY);ctx.stroke()} }
+        function drawFoodSources() { ctx.font='24px serif';ctx.textAlign='center';ctx.textBaseline='middle';for(let b of baies){if(b.quantity>0){ctx.fillText('🍓',b.x,b.y)}}ctx.font='36px serif';for(let m of melons){if(m.quantity>0){ctx.fillText('🍉',m.x,m.y)}} }
+        function drawQueen() { ctx.font='80px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.fillText('🐜', queen.x, queen.y); }
+        function drawAnts() { ctx.font='28px serif';ctx.shadowColor='rgba(0,0,0,0.2)';ctx.shadowBlur=5;for(let f of gameState.fourmis){ctx.fillText('🐜',f.x,f.y)}for(let m of gameState.majors){ctx.font='38px serif';ctx.fillText('🐜',m.x,m.y);}ctx.shadowBlur=0; }
+        function drawSpiders() { ctx.font='42px serif'; for(let s of gameState.spiders){ctx.fillText('🕷️', s.x, s.y);} }
+        function drawSpiderWarnings() {ctx.fillStyle='red';ctx.font='40px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';const a=Math.abs(Math.sin(Date.now()/200));ctx.globalAlpha=a;gameState.spiderWarnings.forEach(b=>{ctx.fillText('!',b.x,b.y)});ctx.globalAlpha=1}
+        
+        function createImpactParticles(x, y) {
+            for (let i = 0; i < 10; i++) {
+                const angle = Math.random() * 2 * Math.PI;
+                const speed = 50 + Math.random() * 50;
+                gameState.impactParticles.push({
+                    x, y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    lifetime: 0.3 + Math.random() * 0.3,
+                    color: `rgba(255, 255, 255, ${0.5 + Math.random() * 0.5})`
+                });
+            }
+        }
+        function updateImpactParticles(dt) {
+            for (let i = gameState.impactParticles.length - 1; i >= 0; i--) {
+                const p = gameState.impactParticles[i];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.lifetime -= dt;
+                if (p.lifetime <= 0) {
+                    gameState.impactParticles.splice(i, 1);
+                }
+            }
+        }
+        function drawImpactParticles() {
+            for (const p of gameState.impactParticles) {
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
+            }
+        }
+
+        function updateWorld(dt) {
+            gameState.timeOfDay+=dt/CONFIG.DAY_CYCLE_DURATION;if(gameState.timeOfDay>=1)gameState.timeOfDay-=1;
+            gameState.weatherTimer+=dt;if(gameState.weatherTimer>=CONFIG.WEATHER_CHANGE_INTERVAL){gameState.weatherTimer=0;if(Math.random()<0.3)gameState.weather=gameState.weather==='sunny'?'raining':'sunny'}
+            if(gameState.weather==='raining'){for(let i=0;i<5;i++)gameState.rainParticles.push({x:Math.random()*canvas.width,y:-20,length:Math.random()*20+10,speed:Math.random()*300+200})}
+            for(let i=gameState.rainParticles.length-1;i>=0;i--){const p=gameState.rainParticles[i];p.y+=p.speed*dt;if(p.y + p.length > herbeTop)gameState.rainParticles.splice(i,1)}
+            
+            gameState.spiderSpawnTimer += dt;
+            if (gameState.spiderSpawnTimer > CONFIG.SPIDER_SPAWN_INTERVAL - 3 && gameState.spiderWarnings.length === 0 && (gameState.majors.length > 0 || gameState.spiderWave > 0)) {
+                const numSpiders = 1 + Math.floor((gameState.spiderWave + 1) / 2);
+                for (let i = 0; i < numSpiders; i++) {
+                    const x = Math.random() < 0.5 ? 40 : canvas.width - 40;
+                    const y = herbeTop - 25;
+                    gameState.spiderWarnings.push({x, y});
+                }
+            }
+
+            if (gameState.spiderSpawnTimer > CONFIG.SPIDER_SPAWN_INTERVAL) {
+                gameState.spiderSpawnTimer = 0;
+                if (gameState.majors.length > 0 || gameState.spiderWave > 0) {
+                    gameState.spiderWave++;
+                    checkAchievements();
+                    gameState.spiderWarnings.forEach(warning => {
+                        const spawnX = warning.x;
+                        const spawnY = warning.y;
+                        gameState.spiders.push(new Spider(Date.now(), spawnX, spawnY, gameState.spiderWave));
+                    });
+                }
+                gameState.spiderWarnings = [];
+            }
+        }
+        
+        function update(dt) {
+            gameState.fourmis.forEach(f => f.update(dt));
+            gameState.majors.forEach(m => m.update(dt));
+            gameState.spiders.forEach(s => s.update(dt));
+            updateWorld(dt);
+            updateImpactParticles(dt);
+
+            for (let i = gameState.oeufs.length - 1; i >= 0; i--) {
+                const oeuf = gameState.oeufs[i];
+                oeuf.incubationTime -= dt;
+                if (oeuf.incubationTime <= 0) {
+                    gameState.fourmis.push(new Fourmi(gameState.nextAntId++, queen.x, queen.y));
+                    gameState.oeufs.splice(i, 1);
+                }
+            }
+
+            baies.forEach(b => { if (b.quantity < CONFIG.MAX_BAIES_QUANTITY) { b.timer += dt; if (b.timer >= CONFIG.REPUSH_TIME) { b.quantity++; b.timer = 0; } } });
+            melons.forEach(m => { if (m.quantity < 1) { m.timer += dt; if (m.timer >= CONFIG.MELON_RESPAWN_TIME) { m.quantity = 1; m.timer = 0; } } });
+
+            gameState.majors = gameState.majors.filter(m => m.health > 0);
+            const killedSpiders = gameState.spiders.filter(s => s.health <= 0);
+            if (killedSpiders.length > 0) {
+                gameState.coins += killedSpiders.length * 15 * gameState.spiderWave;
+                achievements.stats.spidersKilled += killedSpiders.length;
+                checkAchievements();
+            }
+            gameState.spiders = gameState.spiders.filter(s => s.health > 0);
+            
+            updateUI();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawScenery();
+            drawGalleries();
+            drawFoodSources();
+            drawQueen();
+
+            if (gameState.oeufs.length > 0) {
+                const firstEgg = gameState.oeufs[0];
+                const totalIncubationTime = 10;
+                const progress = 1 - (firstEgg.incubationTime / totalIncubationTime);
+                const angle = progress * 2 * Math.PI;
+
+                const eggX = queen.x + 60;
+                const eggY = queen.y;
+                const radius = 20;
+
+                ctx.font = '30px serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🥚', eggX, eggY);
+
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 16px sans-serif';
+                ctx.fillText(gameState.oeufs.length, eggX + 15, eggY + 15);
+
+                ctx.beginPath();
+                ctx.arc(eggX, eggY, radius, 0, 2 * Math.PI);
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(eggX, eggY, radius, -Math.PI / 2, (-Math.PI / 2) + angle);
+                const style = getComputedStyle(document.body);
+                ctx.strokeStyle = style.getPropertyValue('--panel-title-color');
+                ctx.lineWidth = 4;
+                ctx.stroke();
+            }
+
+            drawAnts();
+            drawSpiders();
+            drawRain();
+            drawImpactParticles();
+            drawSpiderWarnings();
+
+            if (queen.health < 100) {
+                ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(queen.x - 40, queen.y - 70, 80, 10);
+                ctx.fillStyle = 'red'; ctx.fillRect(queen.x - 40, queen.y - 70, 80 * Math.max(0, queen.health / 100), 10);
+            }
+            gameState.majors.forEach(m => {
+                ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(m.x - 15, m.y - 30, 30, 5);
+                ctx.fillStyle = 'green'; ctx.fillRect(m.x - 15, m.y - 30, 30 * (m.health / 30), 5);
+            });
+            gameState.spiders.forEach(s => {
+                const maxHealth = 30 + (s.level * 5);
+                ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(s.x - 20, s.y - 35, 40, 5);
+                ctx.fillStyle = 'red'; ctx.fillRect(s.x - 20, s.y - 35, 40 * (s.health / maxHealth), 5);
+            });
+        }
+        
+        function gameLoop(timestamp) {
+            if (!gameState.lastTime) gameState.lastTime = timestamp;
+            const dt = (timestamp - gameState.lastTime) / 1000;
+            gameState.lastTime = timestamp;
+
+            if (!gameState.isGameOver && !gameState.gamePaused) {
+                update(Math.min(dt, 0.1));
+            }
+            
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        uiElements.pondreBtn.addEventListener('click', () => {
+            if (gameState.coins >= 1 && (gameState.fourmis.length + gameState.majors.length + gameState.oeufs.length) < gameState.limiteFourmis) {
+                gameState.coins--;
+                gameState.oeufs.push({ incubationTime: 10 });
+                unlockAchievement('FIRST_EGG');
+            }
+        });
+
+        uiElements.majorBtn.addEventListener('click', () => {
+            if (gameState.coins >= gameState.prixMajor && gameState.fourmis.length > 0) {
+                gameState.coins -= gameState.prixMajor;
+                const antToUpgrade = gameState.fourmis.pop();
+                gameState.majors.push(new Major(antToUpgrade.id, antToUpgrade.x, antToUpgrade.y));
+                gameState.prixMajor = Math.round(gameState.prixMajor * 1.2);
+                achievements.stats.majorsFormed++;
+                unlockAchievement('FIRST_MAJOR');
+                checkAchievements();
+            }
+        });
+
+        uiElements.agrandirBtn.addEventListener('click', () => {
+            if (gameState.coins >= gameState.prixUpgrade) {
+                gameState.coins -= gameState.prixUpgrade;
+                gameState.limiteFourmis += 10;
+                gameState.prixUpgrade = Math.round(gameState.prixUpgrade * 1.5);
+                gameState.galleries.push({
+                    startX: queen.x, startY: queen.y,
+                    endX: queen.x + (Math.random() - 0.5) * 500, endY: centerY + 50 + Math.random() * (herbeBottom - centerY - 50),
+                    controlX: queen.x + (Math.random() - 0.5) * 400, controlY: queen.y + Math.random() * 200
+                });
+                achievements.stats.upgrades++;
+                checkAchievements();
+            }
+        });
+
+        function openModal(modal) {
+            if (activeModal) closeModal(activeModal);
+            modal.style.display = 'block';
+            canvas.classList.add('blurred');
+            gameState.gamePaused = true;
+            activeModal = modal;
+            if (modal === uiElements.achievementsModal) {
+                renderAchievements();
+                uiElements.achievementNotification.style.display = 'none';
+            }
+        }
+
+        function closeModal(modal) {
+            if (!modal) return;
+            modal.style.display = 'none';
+            if (!uiElements.gameOverScreen.style.display || uiElements.gameOverScreen.style.display === 'none') {
+                 canvas.classList.remove('blurred');
+                 gameState.gamePaused = false;
+            }
+            activeModal = null;
+        }
+
+        uiElements.settingsBtn.addEventListener('click', () => openModal(uiElements.settingsModal));
+        uiElements.closeSettingsBtn.addEventListener('click', () => closeModal(uiElements.settingsModal));
+        uiElements.achievementsBtn.addEventListener('click', () => openModal(uiElements.achievementsModal));
+        uiElements.closeAchievementsBtn.addEventListener('click', () => closeModal(uiElements.achievementsModal));
+
+        uiElements.darkModeToggle.addEventListener('change', (e) => {
+            document.body.classList.toggle('dark-mode', e.target.checked);
+            localStorage.setItem('antColonizerDarkMode', e.target.checked);
+        });
+
+        uiElements.resetProgressBtn.addEventListener('click', () => {
+            closeModal(uiElements.settingsModal);
+            uiElements.resetConfirmOverlay.style.display = 'flex';
+            gameState.gamePaused = true;
+        });
+
+        uiElements.confirmResetBtn.addEventListener('click', () => {
+            localStorage.removeItem('antColonizerSave');
+            localStorage.removeItem('antColonizerDarkMode');
+            location.reload();
+        });
+
+        uiElements.cancelResetBtn.addEventListener('click', () => {
+            uiElements.resetConfirmOverlay.style.display = 'none';
+            closeModal(uiElements.resetConfirmOverlay);
+        });
+
+        uiElements.restartBtn.addEventListener('click', () => { location.reload(); });
+
+        window.addEventListener('keydown', e => {
+            if(activeModal) return;
+            keySequence += e.key;
+            if (keySequence.length > cheatCode.length) { keySequence = keySequence.slice(1); }
+            if (keySequence.toLowerCase().includes(cheatCode)) { gameState.coins += 1000; keySequence = ''; }
+        });
+        window.addEventListener('resize', resize);
+        
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                gameState.gamePaused = true;
+            } else {
+                gameState.lastTime = null;
+                gameState.gamePaused = false;
+            }
+        });
+
+        let newAchievements = false;
+        function checkAchievements() {
+            let changed = false;
+            for (const key in achievements) {
+                const ach = achievements[key];
+                if (ach.condition && !ach.unlocked && ach.condition()) {
+                    unlockAchievement(key);
+                    changed = true;
+                }
+            }
+            if (changed) saveGame();
+        }
+
+        function unlockAchievement(key) {
+            if (!achievements[key] || achievements[key].unlocked) return;
+            achievements[key].unlocked = true;
+            gameState.coins += achievements[key].reward || 0;
+            uiElements.achievementNotification.style.display = 'block';
+            newAchievements = true;
+            saveGame();
+        }
+
+        function renderAchievements() {
+            uiElements.achievementsList.innerHTML = '';
+            Object.values(achievements).filter(a => a.name).forEach(ach => {
+                const item = document.createElement('div');
+                item.className = `achievement-item ${ach.unlocked ? 'unlocked' : 'locked'}`;
+                item.innerHTML = `
+                    <div class="achievement-item-icon">${ach.unlocked ? ach.icon : '<span class="locked-icon">❓</span>'}</div>
+                    <div class="achievement-item-details">
+                        <div class="achievement-item-name">${ach.unlocked ? ach.name : '???'}</div>
+                        <div class="achievement-item-desc">${ach.unlocked ? ach.description: 'Débloquez ce succès pour voir les détails.'}</div>
+                    </div>
+                    ${ach.unlocked ? `<div class="achievement-item-reward">+${ach.reward} 💰</div>` : ''}
+                `;
+                uiElements.achievementsList.appendChild(item);
+            });
+            newAchievements = false;
+        }
+
+        function init() {
+            resize();
+            loadGame();
+            const darkMode = localStorage.getItem('antColonizerDarkMode') === 'true';
+            uiElements.darkModeToggle.checked = darkMode;
+            document.body.classList.toggle('dark-mode', darkMode);
+            
+            updateUI();
+            requestAnimationFrame(gameLoop);
+            setInterval(saveGame, 10000);
+        }
+
+        init();
+    </script>
+</body>
+</html>
